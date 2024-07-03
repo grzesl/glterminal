@@ -1,30 +1,33 @@
 
 import 'dart:typed_data';
+
 import 'package:event/event.dart';
 import 'package:test_flutter/comm/basic_comm.dart';
 import 'package:flserial/flserial.dart';
 
-class FlSerialComm implements BasicComm {
-  FlSerial? _port;
+class WebSerialComm implements BasicComm {
+  //WeSerial? _port;
 
   @override
   bool closePort() {
-    return _port!.closePort() > 0? true: false;
+    //return _port!.closePort() > 0? true: false;
+    return true;
   }
 
-  FlSerial get port {
-    return _port!;
-  }
+ // FlSerial get port {
+ //   return _port!;
+  //}
 
   static Future< List<String>> getPortNames() async {
 
-    return await FlSerial.listPorts();
+   // return await FlSerial.listPorts();
+   return [];
   }
 
   @override
   bool openPort(Map settings) {
 
-
+/*
     _port = FlSerial();
     _port?.openPort(settings["portName"], int.parse(settings["baudRate"]));
                   _port?.onSerialData.subscribe((args) {
@@ -93,45 +96,53 @@ class FlSerialComm implements BasicComm {
     }
 
     return _port!.isOpen() == FLOpenStatus.open?true:false;;
+    */
+
+    return true;
   }
 
 
   void enableRTS(bool value) {
-    _port!.setRTS(value);
+   // _port!.setRTS(value);
   //  _config.rts = value?1:0;
   //  _port!.config = _config;
   }
 
   void enableDTR(bool value) {
-    _port!.setDTR(value);
+    //_port!.setDTR(value);
    // _config.dtr = value?1:0;
    // _port!.config = _config;
   }
 
   
   bool getCTS() {
-    return _port!.getCTS();
+    //return _port!.getCTS();
+    return false;
   }
 
   bool getDSR() {
-    return _port!.getDSR();
+    //return _port!.getDSR();
+    return false;
   }
 
 
   @override
   Uint8List read(int len) {
-    Uint8List dataRead  = Uint8List(0);
+    /*Uint8List dataRead  = Uint8List(0);
     var lenavaliable = _port!.readBuff.length ;
     if(lenavaliable > 0) {
       dataRead =  _port!.readListLen(len);
     }
-    return dataRead;
+    return dataRead;*/
+
+    return Uint8List(0);
   }
 
   @override
   int write(Uint8List data) {
-    int wrt = _port!.write(data.length, data );
-    return wrt;
+    //int wrt = _port!.write(data.length, data );
+    //return wrt;
+    return 0;
   }
 
   @override
@@ -139,7 +150,9 @@ class FlSerialComm implements BasicComm {
   
   @override
   bool isOpen() {
-    return port!.isOpen() == FLOpenStatus.open? true: false;
+    //return port!.isOpen() == FLOpenStatus.open? true: false;
+
+    return true;
   }
   
 }

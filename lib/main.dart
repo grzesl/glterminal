@@ -1,14 +1,13 @@
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, prefer_final_fields
 
-
+import 'package:get/get.dart';
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
 import 'package:hive_flutter/adapters.dart';
 import 'package:test_flutter/comm/basic_comm.dart';
 import 'package:test_flutter/comm/flserial_comm.dart';
+import 'package:test_flutter/comm/webserial_comm.dart';
 import 'package:test_flutter/pages/log_view.dart';
 import 'package:test_flutter/pages/utils/log_direction.dart';
 import 'package:test_flutter/pages/utils/symbol.dart';
@@ -47,7 +46,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.grey),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'GL Terminal 1.06'),
+      home: const MyHomePage(title: 'GL Terminal 1.07'),
       routes: {
         '/logview':(context)=>LogView(),
       },
@@ -76,7 +75,9 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
-  BasicComm _comm = FlSerialComm();
+
+  late BasicComm _comm;
+
   List<String> _baudRates = <String>['9600', '19200', '57600', '115200'];
   String _baudRate = "9600";
 
@@ -353,6 +354,15 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
+
+
+  if(GetPlatform.isWeb) {
+    _comm = WebSerialComm();
+  } else {
+    _comm = FlSerialComm();
+  }
+
+
     refreshPrtNames();
 
     //_baudRate = _baudRates.first;
@@ -708,7 +718,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     Switch(value: _enableRTS, onChanged: (value) {
                       setState(() {
                         _enableRTS = value;
-                         (_comm as FlSerialComm).enableRTS(_enableRTS);
+                         _comm.enableRTS(_enableRTS);
                       });
                       _settings.put("enable_rts", _enableRTS);
                       _settings.flush();
@@ -720,7 +730,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     Switch(value: _enableDTR, onChanged: (value) {
                       setState(() {
                         _enableDTR = value;
-                        (_comm as FlSerialComm).enableDTR(_enableDTR);
+                        _comm.enableDTR(_enableDTR);
                       });
                       _settings.put("enable_dtr", _enableDTR);
                       _settings.flush();
