@@ -1,6 +1,4 @@
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, prefer_final_fields
-
-import 'package:get/get.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -123,7 +121,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void refreshPrtNames() async
    {
-    _portNames = await FlSerialComm.getPortNames();
+    _portNames = await BasicComm.getPortNames();
     if(_portNames.isEmpty) {
     _portNames.add("<EMPTY>");
     }
@@ -356,11 +354,11 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
 
 
-  if(GetPlatform.isWeb) {
-    _comm = WebSerialComm();
-  } else {
+  //if(GetPlatform.isWeb) {
+  //  _comm = WebSerialComm();
+  //} else {
     _comm = FlSerialComm();
-  }
+  //}
 
 
     refreshPrtNames();

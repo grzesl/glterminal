@@ -24,11 +24,11 @@ abstract class BasicComm {
   bool getDSR();
   static Future<List<String>> getPortNames() async {
 
-    if(GetPlatform.isWeb) {
-      return await WebSerialComm.getPortNames();
-    } else {
+    //if(GetPlatform.isWeb) {
+    //  return await WebSerialComm.getPortNames();
+    //} else {
       return await FlSerialComm.getPortNames();
-    }
+    //}
   }
   late Event<ReadCommEventArgs> odDataRecived;
 }
