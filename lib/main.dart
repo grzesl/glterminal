@@ -2,9 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:hive_flutter/adapters.dart';
 import 'package:test_flutter/comm/basic_comm.dart';
-import 'package:test_flutter/comm/flserial_comm.dart';
 import 'package:test_flutter/comm/webserial_comm.dart';
 import 'package:test_flutter/pages/log_view.dart';
 import 'package:test_flutter/pages/utils/log_direction.dart';
@@ -12,7 +10,7 @@ import 'package:test_flutter/pages/utils/symbol.dart';
 import 'package:test_flutter/widgets/led_ctrl.dart';
 
 void main() async {
-  await Hive.initFlutter();
+  //await Hive.initFlutter();
   runApp(const MyApp());
 }
 
@@ -108,7 +106,7 @@ class _MyHomePageState extends State<MyHomePage> {
   TextEditingController _logController = TextEditingController();
   ScrollController _logScrollController = ScrollController();
 
-  late Box _settings;
+  //late Box _settings;
 
   bool _appendCR = false;
   bool _appendLF = false;
@@ -124,6 +122,11 @@ class _MyHomePageState extends State<MyHomePage> {
     _portNames = await BasicComm.getPortNames();
     if(_portNames.isEmpty) {
     _portNames.add("<EMPTY>");
+    } else {
+      setState(() {
+         _portName = "WebSerial";
+      });
+     
     }
    }
 
@@ -186,8 +189,8 @@ class _MyHomePageState extends State<MyHomePage> {
       _logController.text += buildLog(LogDirection.none, "MACRO Cleard...");
       _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
 
-      _settings.put("macro_list", _macroList);
-      _settings.flush();
+     // _settings.put("macro_list", _macroList);
+     // _settings.flush();
     } else if(clear == false) {
       if(_macroList[map].isEmpty) {
 
@@ -200,8 +203,8 @@ class _MyHomePageState extends State<MyHomePage> {
         _logController.text += buildLog(LogDirection.none, "MACRO Programmed...");
         _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
 
-        _settings.put("macro_list", _macroList);
-        _settings.flush();
+       // _settings.put("macro_list", _macroList);
+       // _settings.flush();
       } else if(clear == false){
         onSendAction(_macroList[map]);
       }
@@ -256,8 +259,8 @@ class _MyHomePageState extends State<MyHomePage> {
     _logController.text += buildLog(LogDirection.output, value);
     _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
 
-    _settings.put("send_history", _sendTextHistory);
-    _settings.flush();
+   // _settings.put("send_history", _sendTextHistory);
+   // _settings.flush();
    }
 
    String getStringShortut(String macro) {
@@ -275,7 +278,7 @@ class _MyHomePageState extends State<MyHomePage> {
              
                         if(_isCommOpen) {
                          
-                          setState(() {
+                          /*setState(() {
                             _portOpenText = "Open";
                             _portOpenIcon = Icons.play_arrow;
                             _isCommOpen = false;
@@ -286,9 +289,9 @@ class _MyHomePageState extends State<MyHomePage> {
         
                           _logController.text += buildLog(LogDirection.none, "Port closed...");
                           _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
-        
-                          _settings.put("log_string", _logController.text);
-                          _settings.flush();
+        */
+                          //_settings.put("log_string", _logController.text);
+                          //_settings.flush();
                         } else {
                       
 
@@ -333,13 +336,13 @@ class _MyHomePageState extends State<MyHomePage> {
                             
 
         
-                            _settings.put("baud_rate", _baudRate);
-                            _settings.put("port_name", _portName);
-                            _settings.put("byte_size", _byteSize);
-                            _settings.put("parity", _parity);
-                            _settings.put("bit_stop", _stopBit);
-                            _settings.put("flow_control", _flowControl);
-                            _settings.flush();
+                            // _settings.put("baud_rate", _baudRate);
+                            // _settings.put("port_name", _portName);
+                            // _settings.put("byte_size", _byteSize);
+                            // _settings.put("parity", _parity);
+                            // _settings.put("bit_stop", _stopBit);
+                            // _settings.put("flow_control", _flowControl);
+                            // _settings.flush();
                             
         
                             _logController.text += buildLog(LogDirection.none, "Port openned $_portName $_baudRate $_byteSize $_parity $_stopBit $_flowControl...");
@@ -355,18 +358,18 @@ class _MyHomePageState extends State<MyHomePage> {
 
 
   //if(GetPlatform.isWeb) {
-  //  _comm = WebSerialComm();
+    _comm = WebSerialComm();
   //} else {
-    _comm = FlSerialComm();
+  //  _comm = FlSerialComm();
   //}
 
 
-    refreshPrtNames();
+   // refreshPrtNames();
 
     //_baudRate = _baudRates.first;
     //_portName = _portNames.first;
 
-    final box = Hive.openBox("settings").then(
+    /*final box = Hive.openBox("settings").then(
     (value) {
 
       setState(() {
@@ -389,7 +392,7 @@ class _MyHomePageState extends State<MyHomePage> {
       });
       
     },
-  );
+  );*/
 
 
     
@@ -449,8 +452,8 @@ class _MyHomePageState extends State<MyHomePage> {
             _logController.text = "";
           });
 
-          _settings.put("log_string", _logController.text);
-          _settings.flush();
+          //_settings.put("log_string", _logController.text);
+          //_settings.flush();
           
         },),
         IconButton(icon: Icon(_portOpenIcon), onPressed: () {
@@ -621,8 +624,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       setState(() {
                         _appendCR = value;
                       });
-                      _settings.put("append_cr", _appendCR);
-                      _settings.flush();
+                     // _settings.put("append_cr", _appendCR);
+                     // _settings.flush();
                     },),
                     SizedBox(
                       width: 2,
@@ -632,8 +635,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       setState(() {
                         _appendLF = value;
                       });
-                      _settings.put("append_lf", _appendLF);
-                      _settings.flush();
+                     // _settings.put("append_lf", _appendLF);
+                     // _settings.flush();
                     },),
                     SizedBox(
                       width: 2,
@@ -718,8 +721,8 @@ class _MyHomePageState extends State<MyHomePage> {
                         _enableRTS = value;
                          _comm.enableRTS(_enableRTS);
                       });
-                      _settings.put("enable_rts", _enableRTS);
-                      _settings.flush();
+                     // _settings.put("enable_rts", _enableRTS);
+                     // _settings.flush();
                     },),
                     SizedBox(
                       height: 2,
@@ -730,8 +733,8 @@ class _MyHomePageState extends State<MyHomePage> {
                         _enableDTR = value;
                         _comm.enableDTR(_enableDTR);
                       });
-                      _settings.put("enable_dtr", _enableDTR);
-                      _settings.flush();
+                     // _settings.put("enable_dtr", _enableDTR);
+                     // _settings.flush();
                     },),
                     SizedBox(
                       height: 10,

@@ -1,7 +1,5 @@
 import 'dart:typed_data';
-
 import 'package:event/event.dart';
-import 'package:test_flutter/comm/flserial_comm.dart';
 import 'package:test_flutter/comm/webserial_comm.dart';
 
 class ReadCommEventArgs extends EventArgs {
@@ -15,7 +13,7 @@ class ReadCommEventArgs extends EventArgs {
 abstract class BasicComm {
   bool isOpen();
   bool openPort(Map config);
-  int write( Uint8List data);
+  int write(Uint8List data) ;
   Uint8List read(int len);
   bool closePort();
   void enableRTS(bool enable);
@@ -25,9 +23,9 @@ abstract class BasicComm {
   static Future<List<String>> getPortNames() async {
 
     //if(GetPlatform.isWeb) {
-    //  return await WebSerialComm.getPortNames();
+      return await WebSerialComm.getPortNames();
     //} else {
-      return await FlSerialComm.getPortNames();
+    //  return await FlSerialComm.getPortNames();
     //}
   }
   late Event<ReadCommEventArgs> odDataRecived;

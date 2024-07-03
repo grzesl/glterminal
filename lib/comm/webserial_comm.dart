@@ -1,16 +1,24 @@
-
+import 'dart:async';
 import 'dart:typed_data';
-
+import 'dart:html';
 import 'package:event/event.dart';
 import 'package:test_flutter/comm/basic_comm.dart';
-import 'package:flserial/flserial.dart';
+// ignore: depend_on_referenced_packages
+import 'package:serial/serial.dart';
+
 
 class WebSerialComm implements BasicComm {
   //WeSerial? _port;
-
+  int flh = 0;
+  late Timer _timer;
+  static SerialPort? _port;
+  List<int> _readBuff = List.empty(growable: true);
   @override
   bool closePort() {
-    //return _port!.closePort() > 0? true: false;
+    flh = -1;
+    //_port!.abort();
+    //_port!.cancel();
+    _port!.close();
     return true;
   }
 
@@ -18,86 +26,33 @@ class WebSerialComm implements BasicComm {
  //   return _port!;
   //}
 
-  static Future< List<String>> getPortNames() async {
+static Future<List<String>> getPortNames() async  {
 
    // return await FlSerial.listPorts();
-   return [];
+
+   
+  _port = await window.navigator.serial.requestPort();
+   return ["WebSerial"];
   }
+
+
 
   @override
   bool openPort(Map settings) {
 
-/*
-    _port = FlSerial();
-    _port?.openPort(settings["portName"], int.parse(settings["baudRate"]));
-                  _port?.onSerialData.subscribe((args) {
-                    odDataRecived.broadcast(ReadCommEventArgs(args!.len, args!.cts, args!.dsr));
-                  });
-
-    switch(settings["byte_size"])
-    {
-      case "5":
-      _port?.setByteSize5();
-      break;
-      case "6":
-      _port?.setByteSize6();
-      break;
-      case "7":
-      _port?.setByteSize7();
-      break;
-      case "8":
-      _port?.setByteSize8();
-      break;
-    } 
-
-    switch(settings["parity"])
-    {
-      case "none":
-      port?.setByteParityNone();
-      break;
-      case "even":
-      port?.setByteParityEven();
-      break;
-      case "odd":
-      port?.setByteParityOdd();
-      break;
-      case "mark":
-      port?.setByteParityMark();
-      break;
-      case "space":
-      port?.setByteParitySpace();
-      break;
-    }      
-
-
-    switch(settings["bit_stop"])
-    {
-      case "1":
-      port?.setStopBits1();
-      break;
-            case "1.5":
-      port?.setStopBits1_5();
-      break;
-            case "2":
-      port?.setStopBits2();
-      break;
-    }       
-
-    switch (settings["flow_control"]) {
-      case "none":
-        port?.setFlowControlNone();
-        break;
-      case "hardware":
-        port?.setFlowControlHardware();
-        break;
-      case "software":
-        port?.setFlowControlSoftware();
-        break;
-    }
-
-    return _port!.isOpen() == FLOpenStatus.open?true:false;;
-    */
-
+    _port!.open(baudRate: int.parse(settings["baudRate"]),
+             flowControl: FlowControl.none);
+    final reader = _port!.readable.reader;
+    _timer = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (timer) async {
+        if (flh < 0) {
+          _timer.cancel();
+          return;
+        }
+        await _startReceiving(reader);
+      },
+    );
     return true;
   }
 
@@ -128,21 +83,50 @@ class WebSerialComm implements BasicComm {
 
   @override
   Uint8List read(int len) {
-    /*Uint8List dataRead  = Uint8List(0);
-    var lenavaliable = _port!.readBuff.length ;
-    if(lenavaliable > 0) {
-      dataRead =  _port!.readListLen(len);
-    }
-    return dataRead;*/
-
-    return Uint8List(0);
+    Uint8List old = Uint8List(0);
+    if (_readBuff.isNotEmpty) {
+      if(len > _readBuff.length){
+        len = _readBuff.length;
+      }
+      old = Uint8List.fromList(_readBuff.sublist(0, len));
+      _readBuff.removeRange(0, len);
+    } 
+    return old;
   }
 
   @override
   int write(Uint8List data) {
-    //int wrt = _port!.write(data.length, data );
-    //return wrt;
+    if (data.isEmpty) {
+      return 0;
+    }
+
+    if (_port == null) {
+      return 0;
+    }
+
+    final writer = _port!.writable.writer;
+    
+
+     writer.ready;
+     writer.write(data);
+
+     writer.ready;
+     writer.close();
     return 0;
+  }
+
+
+
+    Future<void> _startReceiving( ReadableStreamReader  reader) async {
+  
+    final result = await reader.read();
+    int intres = result.value.length;
+   // _readBuff.add(result.value); 
+   // final ptrNameCodeUnits = result.value.cast<int>();
+   // var list = ptrNameCodeUnits.asTypedList<int>(intres);
+    _readBuff.addAll(result.value);
+    odDataRecived.broadcast(ReadCommEventArgs(
+              _readBuff.length, false, false));
   }
 
   @override
