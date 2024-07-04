@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:test_flutter/comm/basic_comm.dart';
 import 'package:test_flutter/comm/webserial_comm.dart';
+import 'package:test_flutter/db/web_storage.dart';
 import 'package:test_flutter/pages/log_view.dart';
 import 'package:test_flutter/pages/utils/log_direction.dart';
 import 'package:test_flutter/pages/utils/symbol.dart';
@@ -42,7 +43,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.grey),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'GL Terminal 1.07'),
+      home: const MyHomePage(title: 'GL Terminal 1.09'),
       routes: {
         '/logview':(context)=>LogView(),
       },
@@ -77,16 +78,16 @@ class _MyHomePageState extends State<MyHomePage> {
   List<String> _baudRates = <String>['9600', '19200', '57600', '115200'];
   String _baudRate = "9600";
 
-  List<String> _byteSizes = <String>['5', '6', '7', '8'];
+  List<String> _byteSizes = <String>[ '7', '8'];
   String _byteSize = "8";
 
-  List<String> _parities = <String>['none', 'even', 'odd', 'mark', 'space'];
+  List<String> _parities = <String>['none', 'even', 'odd',];
   String _parity = "none";
 
-  List<String> _stopBits = <String>['1', '1.5', '2'];
+  List<String> _stopBits = <String>['1', '2'];
   String _stopBit = "1";
 
-  List<String> _flowControls = <String>['none', 'hardware', 'software'];
+  List<String> _flowControls = <String>['none', 'hardware', ];
   String _flowControl = "none";
 
   List<String> _portNames = [];
@@ -107,6 +108,7 @@ class _MyHomePageState extends State<MyHomePage> {
   ScrollController _logScrollController = ScrollController();
 
   //late Box _settings;
+  late WebStorage _settings;
 
   bool _appendCR = false;
   bool _appendLF = false;
@@ -117,17 +119,10 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _ctsEnabled = false;
   bool _dsrEnabled = false;
 
-  void refreshPrtNames() async
+  Future< List<String>> refreshPrtNames() async
    {
-    _portNames = await BasicComm.getPortNames();
-    if(_portNames.isEmpty) {
-    _portNames.add("<EMPTY>");
-    } else {
-      setState(() {
-         _portName = "WebSerial";
-      });
-     
-    }
+      var  portNames = await BasicComm.getPortNames();
+    return portNames;
    }
 
    String buildLog(LogDirection dir, String msg) {
@@ -189,8 +184,8 @@ class _MyHomePageState extends State<MyHomePage> {
       _logController.text += buildLog(LogDirection.none, "MACRO Cleard...");
       _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
 
-     // _settings.put("macro_list", _macroList);
-     // _settings.flush();
+      _settings.putList("macro_list", _macroList);
+      _settings.flush();
     } else if(clear == false) {
       if(_macroList[map].isEmpty) {
 
@@ -203,8 +198,8 @@ class _MyHomePageState extends State<MyHomePage> {
         _logController.text += buildLog(LogDirection.none, "MACRO Programmed...");
         _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
 
-       // _settings.put("macro_list", _macroList);
-       // _settings.flush();
+       _settings.putList("macro_list", _macroList);
+       _settings.flush();
       } else if(clear == false){
         onSendAction(_macroList[map]);
       }
@@ -259,8 +254,8 @@ class _MyHomePageState extends State<MyHomePage> {
     _logController.text += buildLog(LogDirection.output, value);
     _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
 
-   // _settings.put("send_history", _sendTextHistory);
-   // _settings.flush();
+    _settings.put("send_history", _sendTextHistory.join(" **;** "));
+    _settings.flush();
    }
 
    String getStringShortut(String macro) {
@@ -289,9 +284,14 @@ class _MyHomePageState extends State<MyHomePage> {
         
                           _logController.text += buildLog(LogDirection.none, "Port closed...");
                           _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
-        */
-                          //_settings.put("log_string", _logController.text);
-                          //_settings.flush();
+        
+                          _logController.text += buildLog(LogDirection.none, "Close browser tab to close port...");
+                          _settings.put("log_string", _logController.text);
+                          _settings.flush();*/
+
+                          _logController.text += buildLog(LogDirection.none, "Close browser tab to close Serial Port...");
+                          _settings.put("log_string", _logController.text);
+                          _settings.flush();
                         } else {
                       
 
@@ -336,13 +336,13 @@ class _MyHomePageState extends State<MyHomePage> {
                             
 
         
-                            // _settings.put("baud_rate", _baudRate);
-                            // _settings.put("port_name", _portName);
-                            // _settings.put("byte_size", _byteSize);
-                            // _settings.put("parity", _parity);
-                            // _settings.put("bit_stop", _stopBit);
-                            // _settings.put("flow_control", _flowControl);
-                            // _settings.flush();
+                             _settings.put("baud_rate", _baudRate);
+                             _settings.put("port_name", _portName);
+                             _settings.put("byte_size", _byteSize);
+                             _settings.put("parity", _parity);
+                             _settings.put("bit_stop", _stopBit);
+                             _settings.put("flow_control", _flowControl);
+                             _settings.flush();
                             
         
                             _logController.text += buildLog(LogDirection.none, "Port openned $_portName $_baudRate $_byteSize $_parity $_stopBit $_flowControl...");
@@ -353,7 +353,7 @@ class _MyHomePageState extends State<MyHomePage> {
    }
 
   @override
-  void initState() {
+  void initState()  {
     super.initState();
 
 
@@ -366,36 +366,36 @@ class _MyHomePageState extends State<MyHomePage> {
 
    // refreshPrtNames();
 
-    //_baudRate = _baudRates.first;
+   // _baudRate = _baudRates.first;
     //_portName = _portNames.first;
 
-    /*final box = Hive.openBox("settings").then(
-    (value) {
+    //final box = Hive.openBox("settings").then(
+    //(value) {
 
       setState(() {
 
-      _settings = Hive.box("settings");
-      _logController.text = value.get("log_string");
-      _baudRate  = value.get("baud_rate");
-      _portName  = value.get("port_name");
+      _settings = WebStorage();
+      _logController.text =  _settings.get("log_string", "");
+      _baudRate  =  _settings.get("baud_rate", "9600");
+      _portName  =  _settings.get("port_name", "WebSerial");
 
-      _byteSize = value.get("byte_size");
-      _parity = value.get("parity");
-      _stopBit = value.get("bit_stop");
-      _flowControl = value.get("flow_control");
+      _byteSize =  _settings.get("byte_size", "8");
+      _parity =  _settings.get("parity", "none");
+      _stopBit =  _settings.get("bit_stop", "1");
+      _flowControl =  _settings.get("flow_control", "none");
 
-      _sendTextHistory = value.get("send_history");
-      _macroList = value.get("macro_list");
-      _appendCR = value.get("append_cr");
-      _appendLF = value.get("append_lf");
+      _sendTextHistory =  _settings.getStringList("send_history", "  **;** <BEL>");
+      _macroList =  _settings.getStringList("macro_list", "  **;** <BEL> **;** <ENQ> **;** <DLE> **;** ABC **;**  **;**  **;** ");
+      _appendCR =  _settings.getBool("append_cr", "false");
+      _appendLF =  _settings.getBool("append_lf", "false");
               
       });
       
-    },
-  );*/
+  //  },
+  //);
 
 
-    
+    //_settings.invalidate("send_history");
 
     if(_sendTextHistory.isNotEmpty) {
       _sendTextController.text = _sendTextHistory.first;
@@ -452,8 +452,8 @@ class _MyHomePageState extends State<MyHomePage> {
             _logController.text = "";
           });
 
-          //_settings.put("log_string", _logController.text);
-          //_settings.flush();
+          _settings.put("log_string", _logController.text);
+          _settings.flush();
           
         },),
         IconButton(icon: Icon(_portOpenIcon), onPressed: () {
@@ -493,10 +493,20 @@ class _MyHomePageState extends State<MyHomePage> {
                         final splitted = val.split(" - ");
                         return DropdownMenuEntry(value: splitted[0], label: val);
                       },).toList()),
-                    IconButton(icon: Icon( Icons.refresh), onPressed: () {
-                      setState(() {
-                        refreshPrtNames();
-                      });
+                        IconButton(
+                          icon: Icon(Icons.refresh),
+                          onPressed: () async {
+                            _portNames = await refreshPrtNames();
+                            if(!_comm.isOpen()) return ;
+                            if (_portNames.isEmpty) {
+                              _portNames.add("<EMPTY>");
+                            }
+                            setState(() {
+                              _portNames.add(" ");
+                              _portName = _portNames[0];
+                              _portNameController.text = _portName;
+                            });
+ 
                     },),
                     SizedBox(width: 4,),
                     Text("Port\nBaudRate: "),
@@ -571,9 +581,9 @@ class _MyHomePageState extends State<MyHomePage> {
                         ],
                       ),
                       Expanded(child: SizedBox()),
-                      FilledButton(onPressed: () {
+                      FilledButton(  onPressed: _portNames.length > 0? () { 
                               onPortOpen();
-                      },
+                      } : null,
                       child: Row(children: [Icon(_portOpenIcon), Text(_portOpenText)],),
                       ),
                   ],
@@ -608,7 +618,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       child: DropdownMenu(
                           width: MediaQuery.of(context).size.width - 370,
                           controller: _sendTextController,
-                          initialSelection: _sendTextHistory[1],
+                          initialSelection: _sendTextHistory.length > 1? _sendTextHistory[1]: _sendTextHistory[0],
                           dropdownMenuEntries:
                               _sendTextHistory.map<DropdownMenuEntry<String>>(
                             (val) {
@@ -624,8 +634,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       setState(() {
                         _appendCR = value;
                       });
-                     // _settings.put("append_cr", _appendCR);
-                     // _settings.flush();
+                      _settings.put("append_cr", _appendCR.toString());
+                      _settings.flush();
                     },),
                     SizedBox(
                       width: 2,
@@ -635,8 +645,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       setState(() {
                         _appendLF = value;
                       });
-                     // _settings.put("append_lf", _appendLF);
-                     // _settings.flush();
+                      _settings.put("append_lf", _appendLF.toString());
+                      _settings.flush();
                     },),
                     SizedBox(
                       width: 2,
@@ -721,8 +731,8 @@ class _MyHomePageState extends State<MyHomePage> {
                         _enableRTS = value;
                          _comm.enableRTS(_enableRTS);
                       });
-                     // _settings.put("enable_rts", _enableRTS);
-                     // _settings.flush();
+                      _settings.put("enable_rts", _enableRTS.toString());
+                      _settings.flush();
                     },),
                     SizedBox(
                       height: 2,
@@ -733,8 +743,8 @@ class _MyHomePageState extends State<MyHomePage> {
                         _enableDTR = value;
                         _comm.enableDTR(_enableDTR);
                       });
-                     // _settings.put("enable_dtr", _enableDTR);
-                     // _settings.flush();
+                     _settings.put("enable_dtr", _enableDTR.toString());
+                     _settings.flush();
                     },),
                     SizedBox(
                       height: 10,

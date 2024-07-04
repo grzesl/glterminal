@@ -1,96 +1,181 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:html';
 import 'package:event/event.dart';
 import 'package:test_flutter/comm/basic_comm.dart';
-// ignore: depend_on_referenced_packages
-import 'package:serial/serial.dart';
-
+import 'package:test_flutter/serialport/serial.dart';
 
 class WebSerialComm implements BasicComm {
-  //WeSerial? _port;
-  int flh = 0;
-  late Timer _timer;
+  Timer? _timer;
+  late ReadableStreamReader? _reader = null;
+  late WritableStreamDefaultWriter? _writer = null;
+
   static SerialPort? _port;
   List<int> _readBuff = List.empty(growable: true);
+  static bool isSelectedPort = false;
+
+  bool oldCTS = false;
+  bool oldDSR = false;
+
+  Future<void> waitForTimer() async {
+    while (_timer != null) {
+      Future.delayed(Duration(milliseconds: 100));
+    }
+  }
+
   @override
   bool closePort() {
-    flh = -1;
-    //_port!.abort();
-    //_port!.cancel();
-    _port!.close();
+    closePortAsync();
     return true;
   }
 
- // FlSerial get port {
- //   return _port!;
-  //}
+  Future<bool> closePortAsync() async {
+    _timer!.cancel();
 
-static Future<List<String>> getPortNames() async  {
+    _writer!.ready;
+    _writer!.close();
 
-   // return await FlSerial.listPorts();
+    _reader!.cancel();
+    _reader!.releaseLock();
 
-   
-  _port = await window.navigator.serial.requestPort();
-   return ["WebSerial"];
+    _port!.close();
+    _reader = null;
+    return true;
   }
 
+  SerialPort get port {
+    return _port!;
+  }
 
+  Future<void> _startReceiving(SerialPort p) async {
+    if (_reader == null) {
+      _reader = p.readable.reader;
+    }
+    final result = await _reader!.read();
+
+    if (!_timer!.isActive) return;
+
+    int intres = result.value.length;
+    // _readBuff.add(result.value);
+    // final ptrNameCodeUnits = result.value.cast<int>();
+    // var list = ptrNameCodeUnits.asTypedList<int>(intres);
+    _readBuff.addAll(result.value);
+
+    odDataRecived
+        .broadcast(ReadCommEventArgs(_readBuff.length, oldCTS, oldDSR, true));
+  }
+
+  @override
+  Event<ReadCommEventArgs> odDataRecived = Event();
+
+  static Future<List<String>> getPortNames() async {
+    // return await FlSerial.listPorts();
+
+    try {
+      _port = await window.navigator.serial.requestPort();
+
+      if (_port != null) return ["WebSerial"];
+    } catch (e) {
+      _port = null;
+    }
+
+    return [""];
+  }
 
   @override
   bool openPort(Map settings) {
+    if (_port == null) return false;
 
-    _port!.open(baudRate: int.parse(settings["baudRate"]),
-             flowControl: FlowControl.none);
-    final reader = _port!.readable.reader;
+    FlowControl flowControlChoose = FlowControl.none;
+    if(settings["flow_control"] == "hardware"){
+      flowControlChoose = FlowControl.hardware;
+    }
+
+    DataBits dataBitsChoose = DataBits.eight;
+     if(settings["byte_size"] == "7"){
+      dataBitsChoose = DataBits.eight;}
+    
+    Parity parityChoose = Parity.none;
+    if(settings["parity"] == "even"){
+      parityChoose = Parity.even;
+      }
+    else if (settings["parity"] == "odd"){
+      parityChoose = Parity.odd;
+      }
+
+    StopBits stopBitsChoose = StopBits.one;
+    if(settings["bit_stop"] == "2"){
+      stopBitsChoose = StopBits.two;
+    }
+
+    _port!.open(
+        baudRate: int.parse(settings["baudRate"]),
+        flowControl: flowControlChoose,
+        bufferSize: 8096,
+        dataBits: dataBitsChoose,
+        parity: parityChoose,
+        stopBits: stopBitsChoose);
+
     _timer = Timer.periodic(
       const Duration(milliseconds: 100),
       (timer) async {
-        if (flh < 0) {
-          _timer.cancel();
+        if (!timer.isActive || _port == null) {
+          timer.cancel();
+          _timer = null;
           return;
         }
-        await _startReceiving(reader);
+
+
+        // await _port?.readable.cancel();
+        // _port?.readable.cancel();
+        await _sterRecivingSignals();
+        await _startReceiving(_port!);
       },
     );
     return true;
   }
 
+  Future<void> _sterRecivingSignals()
+  async {
+    bool newCTS = getCTS();
+    bool newDSR = getDSR();
+
+    if(oldCTS != newCTS || newDSR != oldDSR)
+    {
+        odDataRecived.broadcast(ReadCommEventArgs(_readBuff.length, newCTS, newDSR, true));
+
+        oldCTS = newCTS;
+        oldDSR = newDSR;
+    }
+  }
 
   void enableRTS(bool value) {
-   // _port!.setRTS(value);
-  //  _config.rts = value?1:0;
-  //  _port!.config = _config;
+    (_port)!.setSignals(requestToSend: value);
   }
 
   void enableDTR(bool value) {
-    //_port!.setDTR(value);
-   // _config.dtr = value?1:0;
-   // _port!.config = _config;
+    _port!.setSignals(dataTerminalReady: value);
   }
 
-  
   bool getCTS() {
-    //return _port!.getCTS();
-    return false;
+    return _port!.getSignals().clearToSend == null?false:_port!.getSignals().clearToSend!;
   }
 
   bool getDSR() {
-    //return _port!.getDSR();
-    return false;
+    return _port!.getSignals().dataSetReady == null?false:_port!.getSignals().dataSetReady!;
   }
-
 
   @override
   Uint8List read(int len) {
     Uint8List old = Uint8List(0);
     if (_readBuff.isNotEmpty) {
-      if(len > _readBuff.length){
+      if (len > _readBuff.length) {
         len = _readBuff.length;
       }
       old = Uint8List.fromList(_readBuff.sublist(0, len));
       _readBuff.removeRange(0, len);
-    } 
+    }
     return old;
   }
 
@@ -104,39 +189,27 @@ static Future<List<String>> getPortNames() async  {
       return 0;
     }
 
-    final writer = _port!.writable.writer;
-    
+    if (_writer == null) {
+      _writer = _port!.writable.writer;
+    }
 
-     writer.ready;
-     writer.write(data);
+    _writer!.ready;
+    _writer!.write(data);
 
-     writer.ready;
-     writer.close();
     return 0;
   }
 
-
-
-    Future<void> _startReceiving( ReadableStreamReader  reader) async {
-  
-    final result = await reader.read();
-    int intres = result.value.length;
-   // _readBuff.add(result.value); 
-   // final ptrNameCodeUnits = result.value.cast<int>();
-   // var list = ptrNameCodeUnits.asTypedList<int>(intres);
-    _readBuff.addAll(result.value);
-    odDataRecived.broadcast(ReadCommEventArgs(
-              _readBuff.length, false, false));
-  }
-
-  @override
-  Event<ReadCommEventArgs> odDataRecived = Event();
-  
   @override
   bool isOpen() {
     //return port!.isOpen() == FLOpenStatus.open? true: false;
 
-    return true;
+    return _port == null ? false: true;
   }
-  
+
+  @override
+  bool isSelected() {
+    //return port!.isOpen() == FLOpenStatus.open? true: false;
+    
+    return isSelectedPort;
+  }
 }
