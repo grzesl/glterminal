@@ -16,6 +16,8 @@ abstract class BasicComm {
   bool openPort(Map config);
   int write(Uint8List data) ;
   Uint8List read(int len);
+  Future<void> processRead() async {}
+  int available();
   bool closePort();
   void enableRTS(bool enable);
   void enableDTR(bool enable);

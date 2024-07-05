@@ -49,6 +49,53 @@ int SymbolToChar(String c) {
   return ret;
 }
 
+String GetMacro(String pattern, List<String> macroList) {
+    if(pattern.length < 4){
+      return "";
+    }
+
+   int fno = int.parse(pattern[3]);
+
+   return macroList[fno];
+}
+
+List<Uint8List>  StringToMacroUint8List(String strings, List<String> macroList) {
+  bool isopenb = false;
+  String tmpMacro = "";
+  StringBuffer outData = StringBuffer();
+  
+  for (int i = 0 ; i< strings.length;i++) {
+        var b = strings[i];
+    switch(b) {
+      case "{":
+      tmpMacro = b;
+      isopenb = true;
+      break;
+      case "}":
+      isopenb = false;
+      tmpMacro += b;
+      outData.write(GetMacro(tmpMacro, macroList));
+      break;
+      default:
+      if(isopenb) {
+        tmpMacro += b;
+      } else {
+        outData.write(b);
+      }
+    }
+  }
+
+  String out = outData.toString();
+
+  List<String> parts = out.split("==");
+
+  List<Uint8List> list = List.empty(growable: true);
+  for(int i=0;i<parts.length;i++) {
+    list.add(StringToUint8List(parts[i]));
+  }
+
+  return list;
+}
 
 Uint8List StringToUint8List (String strings) {
 

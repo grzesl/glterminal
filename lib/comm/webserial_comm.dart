@@ -212,4 +212,14 @@ class WebSerialComm implements BasicComm {
     
     return isSelectedPort;
   }
+  
+  @override
+  int available() {
+    return _readBuff.length;
+  }
+  
+  @override
+  Future<void> processRead() async {
+    await _startReceiving(_port!);
+  }
 }

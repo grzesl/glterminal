@@ -1,5 +1,7 @@
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, prefer_final_fields
 import 'dart:async';
+import 'dart:js_interop';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:test_flutter/comm/basic_comm.dart';
@@ -43,7 +45,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.grey),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'GL Terminal 1.09'),
+      home: const MyHomePage(title: 'GL Terminal 1.11'),
       routes: {
         '/logview':(context)=>LogView(),
       },
@@ -97,6 +99,11 @@ class _MyHomePageState extends State<MyHomePage> {
   String _portOpenText = "Open";
   IconData _portOpenIcon = Icons.play_arrow;
 
+  String _sendText = "SEND";
+  Uint8List? _waitingForData = null;
+  bool _dataCompared = false;
+
+
   List<String> _sendTextHistory = ["", ""];
   TextEditingController _sendTextController = TextEditingController();
 
@@ -118,6 +125,11 @@ class _MyHomePageState extends State<MyHomePage> {
 
   bool _ctsEnabled = false;
   bool _dsrEnabled = false;
+
+  bool _macroMode = false;
+  bool _repeat = false;
+
+  bool _lastMacroOK = false;
 
   Future< List<String>> refreshPrtNames() async
    {
@@ -150,7 +162,52 @@ class _MyHomePageState extends State<MyHomePage> {
    }
 
 
+  void onDataRecived(ReadCommEventArgs? args) {
+                              if (args != null) {
+                                if (args.cts != _ctsEnabled || args.dsr != _dsrEnabled) {
+                                  setState(() {
+                                    _ctsEnabled = args.cts;
+                                    _dsrEnabled = args.dsr;
+                                  });
 
+                                  _logController.text += buildLog(
+                                      LogDirection.input, "CTS: $_ctsEnabled DSR: $_dsrEnabled");
+                                  _logScrollController
+                                      .jumpTo(_logScrollController.position.maxScrollExtent);
+                                }
+                                if(args.dataLen > 0) {
+                                  
+
+                                  if(_waitingForData != null)
+                                  {
+                                      if(_waitingForData!.length <= _comm.available()){
+                                                                      
+                                         Uint8List dataread = _comm.read(_waitingForData!.length );
+                                          if(isEqual(_waitingForData!, dataread) == false) {
+                                            _logController.text +=
+                                                buildLog(LogDirection.none, "Error compare! recived:" + 
+                                                Uint8ListToString(dataread) + " expected: " + 
+                                                Uint8ListToString(_waitingForData!));
+                                            _logScrollController
+                                                .jumpTo(_logScrollController.position.maxScrollExtent);
+                                            
+                                          }
+                                        _dataCompared = true;
+                                       
+                                      }
+                                  }
+                                  else {
+                                    String data =
+                                        Uint8ListToString(_comm.read(args.dataLen));
+                          
+                                    _logController.text +=
+                                        buildLog(LogDirection.input, data);
+                                    _logScrollController.jumpTo(_logScrollController
+                                        .position.maxScrollExtent);
+                                  }
+                                }
+                              }
+  }
 
 
    bool onMacroClick(KeyboardKey key, {bool clear = false}) {
@@ -222,8 +279,25 @@ class _MyHomePageState extends State<MyHomePage> {
         return KeyEventResult.ignored;
       }
     }
+
+
+   bool isEqual(Uint8List l1, l2) {
+      if(l1.length != l2.length)
+      {
+        return false;
+      }
+
+      for(int i=0;i<l1.length;i++)
+      {
+        if(l1[i] != l2[i]) {
+          return false;
+        }
+      }
+
+      return true;
+   }
     
-   void onSendAction(String value)
+   Future<void> onSendAction(String value) async
    {
 
     if(_isCommOpen == false) {
@@ -249,7 +323,19 @@ class _MyHomePageState extends State<MyHomePage> {
         value += "<LF>";
       }
     
-    _comm.write(StringToUint8List(value));
+    if (_macroMode) {
+      List<Uint8List>  data = StringToMacroUint8List(value, _macroList);
+      Uint8List readData = Uint8List(0);
+      
+      if(data.length > 1)
+      {
+          _waitingForData = data[1];
+          _comm.write(data[0]);
+     
+     }
+    } else {
+      _comm.write(StringToUint8List(value));
+    }
 
     _logController.text += buildLog(LogDirection.output, value);
     _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
@@ -299,30 +385,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           _comm.odDataRecived.subscribe(
                             (args) {
 
-
-                              if (args != null) {
-                                if (args.cts != _ctsEnabled || args.dsr != _dsrEnabled) {
-                                  setState(() {
-                                    _ctsEnabled = args.cts;
-                                    _dsrEnabled = args.dsr;
-                                  });
-
-                                  _logController.text += buildLog(
-                                      LogDirection.input, "CTS: $_ctsEnabled DSR: $_dsrEnabled");
-                                  _logScrollController
-                                      .jumpTo(_logScrollController.position.maxScrollExtent);
-                                }
-                                if(args.dataLen > 0) {
-
-                                  String data =
-                                      Uint8ListToString(_comm.read(args.dataLen));
-                        
-                                  _logController.text +=
-                                      buildLog(LogDirection.input, data);
-                                  _logScrollController.jumpTo(_logScrollController
-                                      .position.maxScrollExtent);
-                                }
-                              }
+                                onDataRecived(args);
                           },);
                           if(_comm.openPort({ "portName":_portName, "baudRate":_baudRate, 
                           "byte_size": _byteSize, "parity": _parity, "bit_stop": _stopBit, 
@@ -493,6 +556,8 @@ class _MyHomePageState extends State<MyHomePage> {
                         final splitted = val.split(" - ");
                         return DropdownMenuEntry(value: splitted[0], label: val);
                       },).toList()),
+                        SizedBox(width: 8,),
+                        Text( "Use to this button\nselect WebSerial ->", style: TextStyle(fontSize:10, color: Color(0xFF000000)),  ),
                         IconButton(
                           icon: Icon(Icons.refresh),
                           onPressed: () async {
@@ -609,6 +674,12 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 Row(
                   children: [
+                    Text("MACRO\nMODE", style: TextStyle(fontSize: 10),),
+                    Switch(value: _macroMode, onChanged: (value) {
+                      setState(() {
+                        _macroMode = value;
+                      });
+                      },),
                     IconButton(icon: Icon( Icons.clear_rounded), onPressed: () {
                       setState(() {
                         _sendTextController.text = "";
@@ -616,7 +687,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     },),
                     Expanded(
                       child: DropdownMenu(
-                          width: MediaQuery.of(context).size.width - 370,
+                          width: MediaQuery.of(context).size.width - 550,
                           controller: _sendTextController,
                           initialSelection: _sendTextHistory.length > 1? _sendTextHistory[1]: _sendTextHistory[0],
                           dropdownMenuEntries:
@@ -652,15 +723,58 @@ class _MyHomePageState extends State<MyHomePage> {
                       width: 2,
                     ),
                     FilledButton(
-                      onPressed: _isCommOpen
-                          ? () {
+                          onPressed: _isCommOpen
+                              ? () {
+                                  if (_waitingForData != null) {
+                                      _waitingForData = null;
+                                      
+                                      _logController.text += buildLog(LogDirection.none, "Compare cancelled...");
+                                      _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
+                                    return;
+                                  }
+                            Timer.periodic(Duration(milliseconds: 1,), (timer) {
+
+                              if(_waitingForData != null &&  _dataCompared) {
+                                setState(() {
+                                  _waitingForData = null;
+                                });
+
+                                _dataCompared = false;
+                                if(_repeat == false) {
+                                timer.cancel();
+                                }
+                                return ;
+                              } else if(_waitingForData != null ){
+                                return;
+                              }
+
                               onSendAction(_sendTextController.text);
+
+                              if(_waitingForData != null) {
+                                return ;
+                              }
+
+                              if(_isCommOpen == false || _repeat == false)
+                              {
+                                timer.cancel();
+                              }
+                              
+                            },);
                             }
                           : null,
                       child: Row(
-                        children: [Icon(Icons.send), Text("SEND")],
+                        children: [Icon(Icons.send), Text(_waitingForData==null?"SEND":"CANCEL")],
                       ),
                     ),
+                    SizedBox(
+                      width: 6,
+                    ),
+                    Text("REPEAT", style: TextStyle(fontSize: 10),),
+                    Switch(value: _repeat, onChanged: (value) {
+                      setState(() {
+                        _repeat = value;
+                      });
+                      },),
                   ],
                 ),
                 SizedBox(
@@ -671,56 +785,56 @@ class _MyHomePageState extends State<MyHomePage> {
                     SizedBox( height: 48, child: ElevatedButton(onPressed: _isCommOpen ? () => onMacroClick(LogicalKeyboardKey.f1): null, child:  Column(
                       children: [
                         Text("F1"),
-                        Text(getStringShortut(_macroList[0]), style: TextStyle(fontSize: 8),),
+                        Text(getStringShortut(_macroList[0]), style: TextStyle(fontSize: 10),),
                       ],
                     ))),
                     SizedBox( width: 2),
                     SizedBox( height: 48, child: ElevatedButton(onPressed: _isCommOpen ? () => onMacroClick(LogicalKeyboardKey.f2) : null, child:  Column(
                       children: [
                         Text("F2"),
-                        Text(getStringShortut(_macroList[1]), style: TextStyle(fontSize: 8),),
+                        Text(getStringShortut(_macroList[1]), style: TextStyle(fontSize: 10),),
                       ],
                     ))),
                     SizedBox( width: 2),
                     SizedBox( height: 48, child: ElevatedButton(onPressed:_isCommOpen ?  () => onMacroClick(LogicalKeyboardKey.f3) : null, child:  Column(
                       children: [
                         Text("F3"),
-                        Text(getStringShortut(_macroList[2]), style: TextStyle(fontSize: 8),),
+                        Text(getStringShortut(_macroList[2]), style: TextStyle(fontSize: 10),),
                       ],
                     ))),
                     SizedBox( width: 2),
                     SizedBox( height: 48, child: ElevatedButton(onPressed: _isCommOpen ? () => onMacroClick(LogicalKeyboardKey.f4) : null,  child:  Column(
                       children: [
                         Text("F4"),
-                        Text(getStringShortut(_macroList[3]), style: TextStyle(fontSize: 8),),
+                        Text(getStringShortut(_macroList[3]), style: TextStyle(fontSize: 10),),
                       ],
                     ))),
                     SizedBox( width: 2),
                     SizedBox( height: 48, child: ElevatedButton(onPressed: _isCommOpen ? () => onMacroClick(LogicalKeyboardKey.f5) : null,  child:  Column(
                       children: [
                         Text("F5"),
-                        Text(getStringShortut(_macroList[4]), style: TextStyle(fontSize: 8),),
+                        Text(getStringShortut(_macroList[4]), style: TextStyle(fontSize: 10),),
                       ],
                     ))),
                     SizedBox( width: 2),
                     SizedBox( height: 48, child: ElevatedButton(onPressed: _isCommOpen ?  () => onMacroClick(LogicalKeyboardKey.f6) : null,  child:  Column(
                       children: [
                         Text("F6"),
-                        Text(getStringShortut(_macroList[5]), style: TextStyle(fontSize: 8),),
+                        Text(getStringShortut(_macroList[5]), style: TextStyle(fontSize: 10),),
                       ],
                     ))),
                     SizedBox( width: 2),
                     SizedBox( height: 48, child: ElevatedButton(onPressed: _isCommOpen ? () => onMacroClick(LogicalKeyboardKey.f7) : null,  child:  Column(
                       children: [
                         Text("F7"),
-                        Text(getStringShortut(_macroList[6]), style: TextStyle(fontSize: 8),),
+                        Text(getStringShortut(_macroList[6]), style: TextStyle(fontSize: 10),),
                       ],
                     ))),
                     SizedBox( width: 2),
                     SizedBox( height: 48, child: ElevatedButton(onPressed: _isCommOpen ?  () => onMacroClick(LogicalKeyboardKey.f8) : null, child:  Column(
                       children: [
                         Text("F8"),
-                        Text(getStringShortut(_macroList[7]), style: TextStyle(fontSize: 8),),
+                        Text(getStringShortut(_macroList[7]), style: TextStyle(fontSize: 10),),
                       ],
                     ))),
 
