@@ -8,8 +8,7 @@
 * fast and quick,
 * no installation needed,
 * multiplatform.
-### [START USING ONLINE](https://glpro.pl/webserial/index.html)
-
+  
 ## Use standalone application.
 * Standalone application may be downloaded from release section.
 
