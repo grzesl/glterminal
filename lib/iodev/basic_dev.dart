@@ -3,7 +3,6 @@ import 'dart:core';
 import 'dart:typed_data';
 import 'package:test_flutter/iodev/dev_config.dart';
 import 'package:test_flutter/iodev/enums.dart';
-import 'package:test_flutter/iodev/serial_web.dart';
 
 abstract class BasicDev {
   late DevConfig configData;

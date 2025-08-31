@@ -1,16 +1,11 @@
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, prefer_final_fields
 import 'dart:async';
-import 'dart:js_interop';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:test_flutter/db/web_storage.dart';
-import 'package:test_flutter/iodev/basic_dev.dart';
 import 'package:test_flutter/iodev/serial_web.dart';
-import 'package:test_flutter/pages/log_view.dart';
 import 'package:test_flutter/pages/utils/log_direction.dart';
 import 'package:test_flutter/pages/utils/symbol.dart';
-import 'package:test_flutter/widgets/led_ctrl.dart';
 
 void main() async {
   //await Hive.initFlutter();
