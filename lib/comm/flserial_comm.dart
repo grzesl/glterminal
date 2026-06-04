@@ -1,4 +1,4 @@
-
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:event/event.dart';
@@ -7,140 +7,162 @@ import 'package:flserial/flserial.dart';
 
 class FlSerialComm implements BasicComm {
   FlSerial? _port;
+  StreamSubscription<SerialEvent>? _eventsSub;
 
-  @override
-  bool closePort() {
-    return _port!.closePort() > 0? true: false;
-  }
+  // flserial 0.6.0 delivers received bytes directly through the events stream
+  // instead of the old readBuff/readListLen polling model, so we buffer them
+  // here to keep the BasicComm read(len) contract intact.
+  final List<int> _readBuffer = [];
+
+  bool _isOpen = false;
+  bool _cts = false;
+  bool _dsr = false;
 
   FlSerial get port {
     return _port!;
   }
 
-  static Future< List<String>> getPortNames() async {
+  @override
+  bool closePort() {
+    _isOpen = false;
+    _eventsSub?.cancel();
+    _eventsSub = null;
+    _readBuffer.clear();
+    _port?.dispose();
+    _port = null;
+    return true;
+  }
 
-    return await FlSerial.listPorts();
+  static Future<List<String>> getPortNames() async {
+    final ports = await FlSerial.availablePorts();
+    return ports.map((p) => "${p.path} - ${p.description}").toList();
   }
 
   @override
-  bool openPort(Map settings) {
-
-
+  Future<bool> openPort(Map settings) async {
     _port = FlSerial();
-    _port?.openPort(settings["portName"], int.parse(settings["baudRate"]));
-                  _port?.onSerialData.subscribe((args) {
-                    odDataRecived.broadcast(ReadCommEventArgs(args!.len, args!.cts, args!.dsr));
-                  });
+    _readBuffer.clear();
 
-    switch(settings["byte_size"])
-    {
-      case "5":
-      _port?.setByteSize5();
-      break;
-      case "6":
-      _port?.setByteSize6();
-      break;
-      case "7":
-      _port?.setByteSize7();
-      break;
-      case "8":
-      _port?.setByteSize8();
-      break;
-    } 
+    _eventsSub = _port!.events.listen(_onSerialEvent);
 
-    switch(settings["parity"])
-    {
-      case "none":
-      port?.setByteParityNone();
-      break;
-      case "even":
-      port?.setByteParityEven();
-      break;
-      case "odd":
-      port?.setByteParityOdd();
-      break;
-      case "mark":
-      port?.setByteParityMark();
-      break;
-      case "space":
-      port?.setByteParitySpace();
-      break;
-    }      
+    final config = SerialConfig(
+      baudRate: int.parse(settings["baudRate"]),
+      dataBits: _mapDataBits(settings["byte_size"]),
+      stopBits: _mapStopBits(settings["bit_stop"]),
+      parity: _mapParity(settings["parity"]),
+      flowControl: _mapFlowControl(settings["flow_control"]),
+    );
 
+    final ok = await _port!.open(settings["portName"], config);
 
-    switch(settings["bit_stop"])
-    {
-      case "1":
-      port?.setStopBits1();
-      break;
-            case "1.5":
-      port?.setStopBits1_5();
-      break;
-            case "2":
-      port?.setStopBits2();
-      break;
-    }       
-
-    switch (settings["flow_control"]) {
-      case "none":
-        port?.setFlowControlNone();
-        break;
-      case "hardware":
-        port?.setFlowControlHardware();
-        break;
-      case "software":
-        port?.setFlowControlSoftware();
-        break;
+    if (!ok) {
+      _eventsSub?.cancel();
+      _eventsSub = null;
+      await _port!.dispose();
+      _port = null;
     }
 
-    return _port!.isOpen() == FLOpenStatus.open?true:false;;
+    _isOpen = ok;
+    return ok;
   }
 
+  void _onSerialEvent(SerialEvent event) {
+    switch (event.type) {
+      case SerialEventType.data:
+        final bytes = event.data as Uint8List;
+        _readBuffer.addAll(bytes);
+        odDataRecived.broadcast(ReadCommEventArgs(bytes.length, _cts, _dsr));
+        break;
+      case SerialEventType.lineStatusChanged:
+        final status = Map<String, bool>.from(event.data as Map);
+        _cts = status['CTS'] ?? _cts;
+        _dsr = status['DSR'] ?? _dsr;
+        odDataRecived.broadcast(ReadCommEventArgs(0, _cts, _dsr));
+        break;
+      case SerialEventType.disconnected:
+        _isOpen = false;
+        break;
+      default:
+        break;
+    }
+  }
+
+  int _mapDataBits(String? value) {
+    return int.tryParse(value ?? "8") ?? 8;
+  }
+
+  int _mapStopBits(String? value) {
+    // flserial 0.6.0 supports only 1 or 2 stop bits.
+    switch (value) {
+      case "2":
+        return 2;
+      default:
+        return 1;
+    }
+  }
+
+  int _mapParity(String? value) {
+    // flserial 0.6.0 supports 0: none, 1: odd, 2: even.
+    switch (value) {
+      case "odd":
+        return 1;
+      case "even":
+        return 2;
+      default:
+        return 0;
+    }
+  }
+
+  int _mapFlowControl(String? value) {
+    // flserial 0.6.0 supports 0: none, 1: RTS/CTS, 2: XON/XOFF.
+    switch (value) {
+      case "hardware":
+        return 1;
+      case "software":
+        return 2;
+      default:
+        return 0;
+    }
+  }
 
   void enableRTS(bool value) {
-    _port!.setRTS(value);
-  //  _config.rts = value?1:0;
-  //  _port!.config = _config;
+    _port?.setRTS(value);
   }
 
   void enableDTR(bool value) {
-    _port!.setDTR(value);
-   // _config.dtr = value?1:0;
-   // _port!.config = _config;
+    _port?.setDTR(value);
   }
 
-  
   bool getCTS() {
-    return _port!.getCTS();
+    return _port?.getModemStatus()['CTS'] ?? false;
   }
 
   bool getDSR() {
-    return _port!.getDSR();
+    return _port?.getModemStatus()['DSR'] ?? false;
   }
-
 
   @override
   Uint8List read(int len) {
-    Uint8List dataRead  = Uint8List(0);
-    var lenavaliable = _port!.readBuff.length ;
-    if(lenavaliable > 0) {
-      dataRead =  _port!.readListLen(len);
+    if (_readBuffer.isEmpty) {
+      return Uint8List(0);
     }
+    final take = len < _readBuffer.length ? len : _readBuffer.length;
+    final dataRead = Uint8List.fromList(_readBuffer.sublist(0, take));
+    _readBuffer.removeRange(0, take);
     return dataRead;
   }
 
   @override
   int write(Uint8List data) {
-    int wrt = _port!.write(data.length, data );
-    return wrt;
+    _port?.write(data);
+    return data.length;
   }
 
   @override
   Event<ReadCommEventArgs> odDataRecived = Event();
-  
+
   @override
   bool isOpen() {
-    return port!.isOpen() == FLOpenStatus.open? true: false;
+    return _isOpen;
   }
-  
 }

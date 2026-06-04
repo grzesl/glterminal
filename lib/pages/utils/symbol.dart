@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 
-int SymbolToChar(String c) {
+int symbolToChar(String c) {
   int ret = 0;
 
   switch(c) {
@@ -50,7 +50,7 @@ int SymbolToChar(String c) {
 }
 
 
-Uint8List StringToUint8List (String strings) {
+Uint8List stringToUint8List (String strings) {
 
   bool isopenb = false;
   String tmpChar = "";
@@ -66,7 +66,7 @@ Uint8List StringToUint8List (String strings) {
       case ">":
       isopenb = false;
       tmpChar += b;
-      outData.addByte(SymbolToChar(tmpChar));
+      outData.addByte(symbolToChar(tmpChar));
       break;
       default:
       if(isopenb) {
@@ -80,7 +80,7 @@ Uint8List StringToUint8List (String strings) {
 }
 
 
-String Uint8ListToString (Uint8List data) {
+String uint8ListToString (Uint8List data) {
   String res = "";
 
   for (int i=0;i< data.length ; i++)

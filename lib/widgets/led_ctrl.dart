@@ -1,5 +1,3 @@
-import 'dart:ffi';
-
 import 'package:flutter/material.dart';
 
 class LedCtrl extends StatefulWidget {
@@ -12,18 +10,18 @@ class LedCtrl extends StatefulWidget {
 
 class _LedCtrlState extends State<LedCtrl> {
 
-  Image led_red =  Image.asset('images/led_red_30.png');
-  Image led_green = Image.asset('images/led_green_30.png');
-  Image? currentLed = null;
- 
+  Image ledRed = Image.asset('images/led_red_30.png');
+  Image ledGreen = Image.asset('images/led_green_30.png');
+  Image? currentLed;
+
 
   @override
   Widget build(BuildContext context) {
 
     if (widget.isOn) {
-      currentLed = led_green;
+      currentLed = ledGreen;
     } else {
-      currentLed = led_red;
+      currentLed = ledRed;
     }
 
     return Container(

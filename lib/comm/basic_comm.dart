@@ -12,7 +12,7 @@ class ReadCommEventArgs extends EventArgs {
 
 abstract class BasicComm {
   bool isOpen();
-  bool openPort(Map config);
+  Future<bool> openPort(Map config);
   int write( Uint8List data);
   Uint8List read(int len);
   bool closePort();
