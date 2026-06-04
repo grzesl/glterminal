@@ -1,0 +1,159 @@
+name: Release
+
+# Build release artifacts for Windows, Linux, macOS, Android and Web.
+# Triggered by pushing a version tag (e.g. v1.0.7) or manually from the
+# Actions tab. On a tag push the artifacts are attached to a GitHub Release;
+# on a manual run they are available as workflow artifacts.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# Avoid running multiple release builds for the same ref at once.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_CHANNEL: stable
+
+jobs:
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter config --enable-windows-desktop
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Package
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath glterminal-windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: glterminal-windows
+          path: glterminal-windows-x64.zip
+          if-no-files-found: error
+
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter config --enable-linux-desktop
+      - run: flutter pub get
+      - run: flutter build linux --release
+      - name: Package
+        run: tar -czf glterminal-linux-x64.tar.gz -C build/linux/x64/release/bundle .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: glterminal-linux
+          path: glterminal-linux-x64.tar.gz
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter config --enable-macos-desktop
+      - run: flutter pub get
+      - run: flutter build macos --release
+      - name: Package .app bundle
+        working-directory: build/macos/Build/Products/Release
+        run: ditto -c -k --sequesterRsrc --keepParent test_flutter.app "$GITHUB_WORKSPACE/glterminal-macos.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: glterminal-macos
+          path: glterminal-macos.zip
+          if-no-files-found: error
+
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter pub get
+      # NOTE: the release build is signed with the debug keystore (see
+      # android/app/build.gradle). Add a real signing config before publishing
+      # to Google Play.
+      - run: flutter build apk --release
+      - run: flutter build appbundle --release
+      - name: Collect outputs
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk glterminal-android.apk
+          cp build/app/outputs/bundle/release/app-release.aab glterminal-android.aab
+      - uses: actions/upload-artifact@v4
+        with:
+          name: glterminal-android
+          path: |
+            glterminal-android.apk
+            glterminal-android.aab
+          if-no-files-found: error
+
+  build-web:
+    name: Build Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter pub get
+      # NOTE: flserial/FFI is not available in the browser, so the serial
+      # features will not work in this build. It is provided for completeness.
+      - run: flutter build web --release
+      - name: Package
+        run: |
+          cd build/web
+          zip -r "$GITHUB_WORKSPACE/glterminal-web.zip" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: glterminal-web
+          path: glterminal-web.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-linux, build-macos, build-android, build-web]
+    runs-on: ubuntu-latest
+    # Only create a Release when triggered by a version tag.
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
